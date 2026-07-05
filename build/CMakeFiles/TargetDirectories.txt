@@ -1,0 +1,3 @@
+/Users/jingwenwu/code/chord-recognition/build/CMakeFiles/chord_recognition.dir
+/Users/jingwenwu/code/chord-recognition/build/CMakeFiles/edit_cache.dir
+/Users/jingwenwu/code/chord-recognition/build/CMakeFiles/rebuild_cache.dir
