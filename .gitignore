@@ -1,49 +1,61 @@
-# ==============================================================================
-# 1. Compiled Binaries and Objects
-# ==============================================================================
-*.o
-*.obj
-*.exe
-*.out
-*.app
-*.so
-*.dylib
-*.a
-*.lib
-
-# ==============================================================================
-# 2. CMake Build Directories (Keeps your source directory clean)
-# ==============================================================================
-# Ignore the common build folder and all its contents
+# =========================
+# Build directories
+# =========================
 build/
+cmake-build-*/
+out/
+bin/
+lib/
+
+# =========================
+# CMake
+# =========================
 CMakeCache.txt
 CMakeFiles/
-CMakePresets.json
-# Un-comment below if you explicitly WANT to share presets with your team
-# !CMakePresets.json
+cmake_install.cmake
+Makefile
+compile_commands.json
 
-# ==============================================================================
-# 3. IDE and Text Editor Metadata (Mac/Universal)
-# ==============================================================================
-# macOS system files
+# =========================
+# Compiled objects
+# =========================
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+*.suo
+*.user
+*.code-workspace
+
+# =========================
+# macOS junk
+# =========================
 .DS_Store
 
-# VS Code
-.vscode/
-!.vscode/extensions.json
+# =========================
+# Logs / temp files
+# =========================
+*.log
+*.tmp
 
-# Xcode (Mac)
-*.xcodeproj/
-*.xcworkspace/
-.Xauthority
+# =========================
+# Debug / crash dumps
+# =========================
+*.dmp
+*.stackdump
 
-# CLion / JetBrains
-.idea/
-cmake-build-debug/
-cmake-build-release/
-
-# ==============================================================================
-# 4. Package Managers and Dependencies (Optional)
-# ==============================================================================
-vcpkg_installed/
-.conan/
+# =========================
+# Audio project leftovers (optional but useful)
+# =========================
+*.wav~
+*.flac~
+*.mp3~
