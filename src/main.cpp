@@ -1,7 +1,9 @@
 #include <iostream>
 #include <stdio.h>
 #include <sndfile.h>
+#include <vector>
 #include "audio/audio_reader.h"
+#include "dsp/rms.h"
 
 int main(int argc, char *argv[]) {
     std::cout << "Hello Chords!" << std::endl;
@@ -13,9 +15,21 @@ int main(int argc, char *argv[]) {
 
     const char *filename = argv[1];
 
+    audio::AudioData audioData;
     try {
-        audio::AudioData audioData = audio::loadAudioFile(filename);
+        audioData = audio::loadAudioFile(filename);
     } catch (const std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
+    }
+
+    std::vector<float> rmsValues;
+    try {
+        rmsValues = dsp::computeRMS(audioData.samples, 1024);
+        for (size_t i = 50; i < 100; ++i) {
+            std::cout << "RMS value for window " << i << ": " << rmsValues[i] << std::endl;
+        }
+    } catch (const std::invalid_argument& e) {
         std::cerr << e.what() << std::endl;
         return 1;
     }
