@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     const char *filename = argv[1];
 
     try {
-        AudioData audioData = loadAudioFile(filename);
+        audio::AudioData audioData = audio::loadAudioFile(filename);
     } catch (const std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         return 1;

@@ -2,11 +2,14 @@
 
 #include <vector>
 
-struct AudioData 
+namespace audio
 {
-    int sampleRate;
-    int channels;
-    std::vector<float> samples;
-};
+    struct AudioData
+    {
+        int sampleRate;
+        int channels;
+        std::vector<float> samples;
+    };
 
-AudioData loadAudioFile(const char* filename);
+    AudioData loadAudioFile(const char *filename);
+}
