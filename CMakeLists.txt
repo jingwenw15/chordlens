@@ -8,6 +8,7 @@ find_package(SndFile REQUIRED)
 
 add_executable(chord_recognition
     src/main.cpp
+    src/audio/audio_reader.cpp
 )
 
 target_link_libraries(chord_recognition
