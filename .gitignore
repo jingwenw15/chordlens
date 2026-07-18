@@ -59,3 +59,8 @@ compile_commands.json
 *.wav~
 *.flac~
 *.mp3~
+
+# ========================
+# Python artifacts
+# ========================
+.venv

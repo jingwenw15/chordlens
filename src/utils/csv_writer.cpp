@@ -11,6 +11,7 @@ namespace utils
             throw std::runtime_error("Could not open file for writing: " + filename);
         }
 
+        outFile << "time,rms\n"; // Write CSV header
         for (const dsp::RMSPoint &point : rmsPoints) {
             outFile << point.time << "," << point.rms << "\n";
         }
