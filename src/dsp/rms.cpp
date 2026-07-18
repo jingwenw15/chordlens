@@ -30,4 +30,18 @@ namespace dsp
         // Note for future: if the number of samples is not a multiple of windowSize, the remaining samples are ignored
         return rmsValues;
     }
+
+    std::vector<RMSPoint> computeRMSOverTime(const std::vector<float>& samples, int windowSize, int sampleRate)
+    {
+        std::vector<float> rmsValues = computeRMS(samples, windowSize);
+        float secondsPerWindow = static_cast<float>(windowSize) / sampleRate;
+
+        std::vector<RMSPoint> rmsPoints;
+        rmsPoints.reserve(rmsValues.size());
+        for (size_t i = 0; i < rmsValues.size(); ++i) {
+            rmsPoints.push_back({i * secondsPerWindow, rmsValues[i]});
+        }
+        
+        return rmsPoints;
+    }
 }

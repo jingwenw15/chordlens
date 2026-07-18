@@ -4,6 +4,7 @@
 #include <vector>
 #include "audio/audio_reader.h"
 #include "dsp/rms.h"
+#include "utils/csv_writer.h"
 
 int main(int argc, char *argv[]) {
     std::cout << "Hello Chords!" << std::endl;
@@ -23,12 +24,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::vector<float> rmsValues;
+    // std::vector<float> rmsValues;
+    // try {
+    //     rmsValues = dsp::computeRMS(audioData.samples, 1024);
+    //     for (size_t i = 50; i < 100; ++i) {
+    //         std::cout << "RMS value for window " << i << ": " << rmsValues[i] << std::endl;
+    //     }
+    // } catch (const std::invalid_argument& e) {
+    //     std::cerr << e.what() << std::endl;
+    //     return 1;
+    // }
+
+    std::vector<dsp::RMSPoint> rmsPoints;
     try {
-        rmsValues = dsp::computeRMS(audioData.samples, 1024);
-        for (size_t i = 50; i < 100; ++i) {
-            std::cout << "RMS value for window " << i << ": " << rmsValues[i] << std::endl;
-        }
+        rmsPoints = dsp::computeRMSOverTime(audioData.samples, 1024, audioData.sampleRate);
+        utils::writeRMSValuesToCSV("rms_values.csv", rmsPoints);
     } catch (const std::invalid_argument& e) {
         std::cerr << e.what() << std::endl;
         return 1;
