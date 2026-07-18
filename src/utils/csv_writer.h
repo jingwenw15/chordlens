@@ -6,5 +6,5 @@
 
 namespace utils 
 {
-    void writeRMSValuesToCSV(const std::string& filename, const std::vector<dsp::RMSPoint>& rmsPoints);
+    void writeToCSV(const std::string& filename, const std::vector<dsp::RMSPoint>& rmsPoints);
 }

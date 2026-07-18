@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     std::vector<dsp::RMSPoint> rmsPoints;
     try {
         rmsPoints = dsp::computeRMSOverTime(audioData.samples, 1024, audioData.sampleRate);
-        utils::writeRMSValuesToCSV("rms_values.csv", rmsPoints);
+        utils::writeToCSV("rms_values.csv", rmsPoints);
     } catch (const std::invalid_argument& e) {
         std::cerr << e.what() << std::endl;
         return 1;
