@@ -8,8 +8,9 @@ const note = document.querySelector('#recording-note');
 const status = document.querySelector('#status');
 const results = document.querySelector('#results');
 const playProgressionButton = document.querySelector('#play-progression');
+const playWithAudioButton = document.querySelector('#play-with-audio');
 const stability = document.querySelector('#stability');
-let selectedFile, recorder, previewContext, currentSegments = [];
+let selectedFile, recorder, previewContext, currentSegments = [], progressionActive = false, progressionPaused = false, progressionUsesOriginal = false, activeProgressionVoices = 0;
 
 function setStatus(message, type = '') { status.textContent = message; status.className = `status ${type}`; }
 function prettyTime(seconds) { const minutes = Math.floor(seconds / 60); return `${minutes}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`; }
@@ -50,19 +51,46 @@ record.addEventListener('click', async () => {
     note.hidden = false; record.textContent = 'Stop recording'; setStatus('Listening… play a chord or progression, then stop recording.', 'working');
   } catch (error) { setStatus(`Microphone unavailable: ${error.message}`, 'error'); }
 });
-function playChord(segment, when, duration) {
-  previewContext ||= new (window.AudioContext || window.webkitAudioContext)(); previewContext.resume(); const now = when ?? previewContext.currentTime, length = duration ?? 1.2;
+function scheduleChord(context, segment, when, duration, onVoiceEnded) {
+  const now = when, length = duration;
   [segment.root - 12, ...segment.intervals.map(interval => segment.root + interval), segment.root + 12].forEach((note, index) => {
-    const oscillator = previewContext.createOscillator(), gain = previewContext.createGain(), midi = 48 + note;
-    oscillator.type = index === 0 ? 'triangle' : 'sine'; oscillator.frequency.value = 440 * 2 ** ((midi - 69) / 12); gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(index === 0 ? .11 : .075, now + .025); gain.gain.setValueAtTime(index === 0 ? .11 : .075, now + Math.max(.03, length - .08)); gain.gain.exponentialRampToValueAtTime(.0001, now + length); oscillator.connect(gain).connect(previewContext.destination); oscillator.start(now); oscillator.stop(now + length + .02);
+    const oscillator = context.createOscillator(), gain = context.createGain(), midi = 48 + note;
+    oscillator.type = index === 0 ? 'triangle' : 'sine'; oscillator.frequency.value = 440 * 2 ** ((midi - 69) / 12); gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(index === 0 ? .11 : .075, now + .025); gain.gain.setValueAtTime(index === 0 ? .11 : .075, now + Math.max(.03, length - .08)); gain.gain.exponentialRampToValueAtTime(.0001, now + length); oscillator.connect(gain).connect(context.destination); oscillator.start(now); oscillator.stop(now + length + .02);
+    if (onVoiceEnded) oscillator.addEventListener('ended', onVoiceEnded, { once: true });
   });
 }
-function playProgression() {
-  if (!currentSegments.length) return; previewContext ||= new (window.AudioContext || window.webkitAudioContext)(); previewContext.resume();
-  const start = previewContext.currentTime + .08, firstTime = currentSegments[0].start;
-  currentSegments.forEach(segment => playChord(segment, start + segment.start - firstTime, Math.max(.1, segment.end - segment.start)));
+function playChord(segment) {
+  previewContext ||= new (window.AudioContext || window.webkitAudioContext)(); previewContext.resume();
+  scheduleChord(previewContext, segment, previewContext.currentTime, 1.2);
 }
-playProgressionButton.addEventListener('click', playProgression);
+function setProgressionControls() {
+  if (!progressionActive) { playProgressionButton.textContent = '▶ Play chord progression'; playWithAudioButton.textContent = '▶ Play with original audio'; return; }
+  const label = progressionPaused ? '▶ Resume' : 'Ⅱ Pause';
+  (progressionUsesOriginal ? playWithAudioButton : playProgressionButton).textContent = label;
+}
+function finishProgression() {
+  if (!progressionActive) return; progressionActive = false; progressionPaused = false;
+  if (progressionUsesOriginal) player.pause(); progressionUsesOriginal = false; setProgressionControls();
+}
+async function toggleProgression(withOriginal) {
+  if (!currentSegments.length) return;
+  if (progressionActive) {
+    if (progressionPaused) { await previewContext.resume(); if (progressionUsesOriginal) await player.play(); progressionPaused = false; }
+    else { await previewContext.suspend(); if (progressionUsesOriginal) player.pause(); progressionPaused = true; }
+    setProgressionControls(); return;
+  }
+  previewContext ||= new (window.AudioContext || window.webkitAudioContext)(); await previewContext.resume();
+  const firstTime = currentSegments[0].start;
+  if (withOriginal) { player.currentTime = firstTime; await player.play(); }
+  const start = previewContext.currentTime + .06;
+  progressionActive = true; progressionPaused = false; progressionUsesOriginal = withOriginal;
+  activeProgressionVoices = currentSegments.reduce((total, segment) => total + segment.intervals.length + 2, 0);
+  const voiceEnded = () => { activeProgressionVoices--; if (activeProgressionVoices === 0) finishProgression(); };
+  currentSegments.forEach(segment => scheduleChord(previewContext, segment, start + segment.start - firstTime, Math.max(.1, segment.end - segment.start), voiceEnded));
+  setProgressionControls();
+}
+playProgressionButton.addEventListener('click', () => toggleProgression(false));
+playWithAudioButton.addEventListener('click', () => toggleProgression(true));
 function render(analysis) {
   const { segments, duration } = analysis; currentSegments = segments; document.querySelector('#summary').textContent = segments.map(segment => segment.label).join('  →  '); document.querySelector('#duration').textContent = `${prettyTime(duration)} analysed`;
   const timeline = document.querySelector('#timeline'), rows = document.querySelector('#chord-rows'); timeline.innerHTML = ''; rows.innerHTML = '';
