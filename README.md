@@ -32,7 +32,7 @@ src/ (C++ audio reader and chord detector)
 
 ## How recognition works
 
-For overlapping 186 ms audio windows, the C++ analyser computes a spectrum, folds pitch energy into the twelve musical pitch classes (chroma), and compares that profile with major, minor, dominant 7th, major 7th, minor 7th, suspended 4th, and diminished chord templates. It ignores low-energy frames, smooths adjacent decisions, and returns the resulting chord timeline as JSON. Each result has a **Play** button that previews the detected chord with a synthesized piano-like voicing.
+For overlapping 186 ms audio windows, the C++ analyser computes a spectrum, folds pitch energy into the twelve musical pitch classes (chroma), and compares that profile with major, minor, dominant 7th, major 7th, minor 7th, suspended 4th, and diminished chord templates. It ignores low-energy frames, then uses temporal decoding with a chord-change penalty so a new segment is emitted only after sustained evidence for a different chord. Use the UI's **Chord change detail** control to choose the appropriate grouping for the recording. Each result has a **Play** button that previews the detected chord with a synthesized piano-like voicing.
 
 This is intentionally an explainable baseline rather than a trained transcription model. It is most accurate on isolated guitar/piano chords and simple progressions. Very dense mixes, heavy drums, inversions, altered chords, and detuned audio can make a template-based estimate ambiguous.
 

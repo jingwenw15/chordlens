@@ -24,14 +24,28 @@ def multipart_audio(handler):
     if length > MAX_UPLOAD_BYTES:
         raise ValueError("Audio files must be 30 MB or smaller.")
     boundary = b"--" + boundary_match.group(1).strip('"').encode()
+    audio = None
+    stability = 9
     for part in handler.rfile.read(length).split(boundary):
-        if b"name=\"audio\"" not in part or b"\r\n\r\n" not in part:
+        if b"\r\n\r\n" not in part:
             continue
         headers, data = part.split(b"\r\n\r\n", 1)
-        filename = re.search(rb'filename="([^"]*)"', headers)
-        suffix = Path(filename.group(1).decode("utf-8", "ignore") if filename else "audio.wav").suffix or ".wav"
-        return data.rstrip(b"\r\n"), suffix
-    raise ValueError("The request did not contain an audio file.")
+        payload = data[:-2] if data.endswith(b"\r\n") else data
+        name = re.search(rb'name="([^"]+)"', headers)
+        if not name:
+            continue
+        field = name.group(1).decode("utf-8", "ignore")
+        if field == "stability":
+            stability = int(payload.decode("ascii"))
+        elif field == "audio":
+            filename = re.search(rb'filename="([^"]*)"', headers)
+            suffix = Path(filename.group(1).decode("utf-8", "ignore") if filename else "audio.wav").suffix or ".wav"
+            audio = payload
+    if audio is None:
+        raise ValueError("The request did not contain an audio file.")
+    if not 1 <= stability <= 30:
+        raise ValueError("Invalid chord-change detail setting.")
+    return audio, suffix, stability
 
 
 class ChordLensHandler(SimpleHTTPRequestHandler):
@@ -55,11 +69,11 @@ class ChordLensHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "C++ analyser is not built. Run cmake -S . -B build && cmake --build build."})
             return
         try:
-            audio, suffix = multipart_audio(self)
+            audio, suffix, stability = multipart_audio(self)
             with tempfile.NamedTemporaryFile(suffix=suffix) as upload:
                 upload.write(audio)
                 upload.flush()
-                completed = subprocess.run([str(BINARY), upload.name, "--json"], capture_output=True, text=True, timeout=60, check=False)
+                completed = subprocess.run([str(BINARY), upload.name, "--json", "--stability", str(stability)], capture_output=True, text=True, timeout=60, check=False)
             if completed.returncode:
                 raise RuntimeError(completed.stderr.strip() or "The C++ analyser failed.")
             self.send_json(HTTPStatus.OK, json.loads(completed.stdout))

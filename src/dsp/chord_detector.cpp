@@ -5,6 +5,7 @@
 #include <cmath>
 #include <complex>
 #include <iomanip>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 
@@ -21,6 +22,7 @@ const std::vector<Template> kTemplates = {
 };
 
 struct Frame { double time; double rms; std::array<float, 12> chroma; int root = -1; std::vector<int> intervals; std::string label; int confidence = 0; };
+struct ChordState { int root; std::vector<int> intervals; std::string label; };
 
 int pitchClass(int note) { return (note % 12 + 12) % 12; }
 
@@ -77,27 +79,90 @@ Frame analyseFrame(const std::vector<float>& mono, int start, int sampleRate) {
     return frame;
 }
 
-Frame classify(Frame frame) {
-    double bestScore = -1e9, runnerUp = -1e9;
-    for (int root = 0; root < 12; ++root) for (const auto& chord : kTemplates) {
-        std::array<float, 12> profile{};
-        for (int interval : chord.intervals) profile[pitchClass(root + interval)] = interval == 0 ? 1.25f : 1.0f;
-        double norm = 0.0; for (float value : profile) norm += value * value; norm = std::sqrt(norm);
-        double score = 0.0; for (int pc = 0; pc < 12; ++pc) score += frame.chroma[pc] * profile[pc] / norm;
-        score -= 0.03 * (static_cast<int>(chord.intervals.size()) - 3); // avoid calling plain triads sevenths from their harmonics
-        if (score > bestScore) {
-            runnerUp = bestScore; bestScore = score; frame.root = root; frame.intervals = chord.intervals;
-            frame.label = std::string(kPitchNames[root]) + chord.suffix;
-        } else if (score > runnerUp) runnerUp = score;
+const std::vector<ChordState>& chordStates() {
+    static const std::vector<ChordState> states = [] {
+        std::vector<ChordState> result;
+        for (int root = 0; root < 12; ++root) for (const auto& chord : kTemplates) result.push_back({root, chord.intervals, std::string(kPitchNames[root]) + chord.suffix});
+        return result;
+    }();
+    return states;
+}
+
+double scoreState(const std::array<float, 12>& chroma, const ChordState& state) {
+    std::array<float, 12> profile{};
+    for (int interval : state.intervals) profile[pitchClass(state.root + interval)] = interval == 0 ? 1.25f : 1.0f;
+    double norm = 0.0; for (float value : profile) norm += value * value; norm = std::sqrt(norm);
+    double score = 0.0; for (int pc = 0; pc < 12; ++pc) score += chroma[pc] * profile[pc] / norm;
+    // A seventh template contains every note of its parent triad. Instrument
+    // overtones often add apparent seventh energy, so require appreciably more
+    // evidence before choosing the more complex chord quality.
+    return score - 0.08 * (static_cast<int>(state.intervals.size()) - 3);
+}
+
+void decodeChordRun(std::vector<Frame>& frames, int first, int last) {
+    const auto& states = chordStates();
+    const int stateCount = static_cast<int>(states.size()), frameCount = last - first;
+    constexpr double kChangePenalty = 0.18; // one-time cost for a chord change
+    std::vector<std::vector<int>> back(frameCount, std::vector<int>(stateCount));
+    std::vector<double> previous(stateCount), current(stateCount), emissions(stateCount);
+    for (int offset = 0; offset < frameCount; ++offset) {
+        const auto& chroma = frames[first + offset].chroma;
+        double bestEmission = -1e9, secondEmission = -1e9;
+        for (int state = 0; state < stateCount; ++state) {
+            emissions[state] = scoreState(chroma, states[state]);
+            if (emissions[state] > bestEmission) { secondEmission = bestEmission; bestEmission = emissions[state]; }
+            else if (emissions[state] > secondEmission) secondEmission = emissions[state];
+        }
+        if (offset == 0) { current = emissions; std::iota(back[offset].begin(), back[offset].end(), 0); }
+        else {
+            const int bestPrevious = static_cast<int>(std::distance(previous.begin(), std::max_element(previous.begin(), previous.end())));
+            for (int state = 0; state < stateCount; ++state) {
+                const double stay = previous[state], change = previous[bestPrevious] - kChangePenalty;
+                if (stay >= change) { current[state] = emissions[state] + stay; back[offset][state] = state; }
+                else { current[state] = emissions[state] + change; back[offset][state] = bestPrevious; }
+            }
+        }
+        previous.swap(current);
     }
-    frame.confidence = std::clamp(static_cast<int>(std::lround(42.0 + std::max(0.0, bestScore - runnerUp) * 260.0)), 0, 99);
-    return frame;
+    int state = static_cast<int>(std::distance(previous.begin(), std::max_element(previous.begin(), previous.end())));
+    for (int offset = frameCount - 1; offset >= 0; --offset) {
+        auto& frame = frames[first + offset]; const auto& selected = states[state];
+        frame.root = selected.root; frame.intervals = selected.intervals; frame.label = selected.label;
+        // Report local ambiguity, while the actual selected label above is
+        // temporally stabilised by the full run.
+        const double selectedScore = scoreState(frame.chroma, selected);
+        double runnerUp = -1e9; for (int other = 0; other < stateCount; ++other) if (other != state) runnerUp = std::max(runnerUp, scoreState(frame.chroma, states[other]));
+        frame.confidence = std::clamp(static_cast<int>(std::lround(42.0 + std::max(0.0, selectedScore - runnerUp) * 260.0)), 0, 99);
+        state = back[offset][state];
+    }
+}
+
+void mergeBriefChordRuns(std::vector<Frame>& frames, int minimumStableFrames) {
+    // This is measured in analysis frames, rather than imposing timestamp bins.
+    struct Run { int first; int last; };
+    std::vector<Run> runs;
+    for (int index = 0; index < static_cast<int>(frames.size());) {
+        if (frames[index].label == "No chord") { ++index; continue; }
+        const int first = index; const std::string label = frames[index].label;
+        while (index < static_cast<int>(frames.size()) && frames[index].label == label) ++index;
+        runs.push_back({first, index});
+    }
+    for (int run = 0; run < static_cast<int>(runs.size()); ++run) {
+        if (runs[run].last - runs[run].first >= minimumStableFrames || runs.size() == 1) continue;
+        const int replacement = run > 0 ? runs[run - 1].first : runs[run + 1].first;
+        const Frame& chosen = frames[replacement];
+        for (int index = runs[run].first; index < runs[run].last; ++index) {
+            frames[index].root = chosen.root; frames[index].intervals = chosen.intervals;
+            frames[index].label = chosen.label; frames[index].confidence = chosen.confidence;
+        }
+    }
 }
 
 } // namespace
 
-ChordAnalysis detectChords(const std::vector<float>& interleavedSamples, int channels, int sampleRate) {
+ChordAnalysis detectChords(const std::vector<float>& interleavedSamples, int channels, int sampleRate, int minimumStableFrames) {
     if (channels < 1 || sampleRate < 1) throw std::invalid_argument("Invalid audio format.");
+    if (minimumStableFrames < 1 || minimumStableFrames > 30) throw std::invalid_argument("Stability must be between 1 and 30 frames.");
     const size_t frameCount = interleavedSamples.size() / channels;
     if (frameCount < kFrameSize) throw std::invalid_argument("Audio is too short; provide at least one second.");
     std::vector<float> mono(frameCount);
@@ -108,33 +173,28 @@ ChordAnalysis detectChords(const std::vector<float>& interleavedSamples, int cha
         auto frame = analyseFrame(mono, static_cast<int>(start), sampleRate); frame.time = static_cast<double>(start) / sampleRate; peakRms = std::max(peakRms, frame.rms); frames.push_back(std::move(frame));
     }
     const double silenceThreshold = std::max(0.003, peakRms * 0.12);
-    for (auto& frame : frames) if (frame.rms >= silenceThreshold) frame = classify(std::move(frame)); else frame.label = "No chord";
-    std::vector<Frame> smoothed;
-    for (int i = 0; i < static_cast<int>(frames.size()); ++i) {
-        std::array<int, 5> matching{}; std::vector<std::string> labels;
-        for (int j = std::max(0, i - 2); j < std::min(static_cast<int>(frames.size()), i + 3); ++j) labels.push_back(frames[j].label);
-        std::string selected = labels.front(); int count = 0;
-        for (const auto& label : labels) { const int current = static_cast<int>(std::count(labels.begin(), labels.end(), label)); if (current > count) { selected = label; count = current; } }
-        auto source = std::find_if(frames.begin() + std::max(0, i - 2), frames.begin() + std::min(static_cast<int>(frames.size()), i + 3), [&](const Frame& item) { return item.label == selected; });
-        smoothed.push_back(*source);
-        smoothed.back().time = frames[i].time;
+    for (auto& frame : frames) if (frame.rms < silenceThreshold) frame.label = "No chord";
+    for (int first = 0; first < static_cast<int>(frames.size());) {
+        while (first < static_cast<int>(frames.size()) && frames[first].label == "No chord") ++first;
+        const int last = first; while (first < static_cast<int>(frames.size()) && frames[first].label != "No chord") ++first;
+        if (last < first) decodeChordRun(frames, last, first);
     }
+    mergeBriefChordRuns(frames, minimumStableFrames);
     ChordAnalysis result{static_cast<double>(frameCount) / sampleRate, {}};
     const double hopSeconds = static_cast<double>(kHopSize) / sampleRate;
-    bool previousWasSilence = true;
-    for (const auto& frame : smoothed) {
-        if (frame.label == "No chord") { previousWasSilence = true; continue; }
-        if (!previousWasSilence && !result.segments.empty() && result.segments.back().label == frame.label) {
+    for (const auto& frame : frames) {
+        // Silence does not make a new chord segment. Consecutive frames are
+        // merged until the recognised chord label actually changes.
+        if (frame.label == "No chord") continue;
+        if (!result.segments.empty() && result.segments.back().label == frame.label) {
             auto& segment = result.segments.back(); segment.end = frame.time + hopSeconds; segment.confidence += frame.confidence;
         } else result.segments.push_back({frame.label, frame.root, frame.intervals, frame.time, frame.time + hopSeconds, frame.confidence});
-        previousWasSilence = false;
     }
     // Merge confidence is accumulated above; calculate an average from frame count by duration.
     for (auto& segment : result.segments) {
         const int count = std::max(1, static_cast<int>(std::lround((segment.end - segment.start) / hopSeconds)));
         segment.confidence = std::clamp(segment.confidence / count, 0, 99); segment.end = std::min(segment.end, result.duration);
     }
-    result.segments.erase(std::remove_if(result.segments.begin(), result.segments.end(), [](const ChordSegment& segment) { return segment.end - segment.start < 0.45; }), result.segments.end());
     return result;
 }
 

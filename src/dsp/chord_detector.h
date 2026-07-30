@@ -20,7 +20,7 @@ struct ChordAnalysis {
 };
 
 // Analyses interleaved PCM samples and returns a smoothed chord timeline.
-ChordAnalysis detectChords(const std::vector<float>& interleavedSamples, int channels, int sampleRate);
+ChordAnalysis detectChords(const std::vector<float>& interleavedSamples, int channels, int sampleRate, int minimumStableFrames = 9);
 std::string analysisToJson(const ChordAnalysis& analysis);
 
 } // namespace dsp

@@ -29,6 +29,13 @@
         <div>
           <h2>Analysis</h2>
           <p class="muted">Best with clear, sustained harmony. Works entirely on this device.</p>
+          <label class="detail-control">Chord change detail
+            <select id="stability">
+              <option value="5">Responsive — quicker changes</option>
+              <option value="9" selected>Balanced — recommended</option>
+              <option value="14">Stable — fewer changes</option>
+            </select>
+          </label>
         </div>
         <button id="analyse-button" class="button primary" type="button" disabled>Identify chords</button>
       </section>
@@ -37,7 +44,7 @@
 
       <section id="results" hidden>
         <div class="results-heading">
-          <div><p class="eyebrow">DETECTED PROGRESSION</p><h2 id="summary">—</h2></div>
+          <div><p class="eyebrow">DETECTED PROGRESSION</p><h2 id="summary">—</h2><button id="play-progression" class="button secondary play-progression" type="button">▶ Play chord progression</button></div>
           <p id="duration" class="muted"></p>
         </div>
         <div id="timeline" class="timeline" aria-label="Chord timeline"></div>
