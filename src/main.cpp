@@ -1,16 +1,11 @@
 #include <iostream>
-#include <stdio.h>
-#include <sndfile.h>
-#include <vector>
+#include <string>
 #include "audio/audio_reader.h"
-#include "dsp/rms.h"
-#include "utils/csv_writer.h"
+#include "dsp/chord_detector.h"
 
 int main(int argc, char *argv[]) {
-    std::cout << "Hello Chords!" << std::endl;
-
     if (argc < 2) {
-        std::cerr << "Usage: ./chord_recognition <audio_file>" << std::endl;
+        std::cerr << "Usage: chord_recognition <audio_file> [--json]" << std::endl;
         return 1;
     }
 
@@ -24,22 +19,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // std::vector<float> rmsValues;
-    // try {
-    //     rmsValues = dsp::computeRMS(audioData.samples, 1024);
-    //     for (size_t i = 50; i < 100; ++i) {
-    //         std::cout << "RMS value for window " << i << ": " << rmsValues[i] << std::endl;
-    //     }
-    // } catch (const std::invalid_argument& e) {
-    //     std::cerr << e.what() << std::endl;
-    //     return 1;
-    // }
-
-    std::vector<dsp::RMSPoint> rmsPoints;
     try {
-        rmsPoints = dsp::computeRMSOverTime(audioData.samples, 1024, audioData.sampleRate);
-        utils::writeToCSV("rms_values.csv", rmsPoints);
-    } catch (const std::invalid_argument& e) {
+        const auto analysis = dsp::detectChords(audioData.samples, audioData.channels, audioData.sampleRate);
+        if (argc > 2 && std::string(argv[2]) == "--json") std::cout << dsp::analysisToJson(analysis) << std::endl;
+        else for (const auto& chord : analysis.segments) std::cout << chord.start << "–" << chord.end << "  " << chord.label << " (" << chord.confidence << "%)\n";
+    } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return 1;
     }
