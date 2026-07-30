@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chord Lens</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header>
+        <p class="eyebrow">LOCAL AUDIO ANALYSIS</p>
+        <h1>Chord Lens</h1>
+        <p class="intro">Drop in a song, loop, or recording—or use your microphone—and see the chords as they change.</p>
+      </header>
+
+      <section class="panel source-panel" aria-labelledby="source-heading">
+        <h2 id="source-heading">Choose audio</h2>
+        <div class="source-actions">
+          <label class="button primary" for="file-input">Upload audio<input id="file-input" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden /></label>
+          <button id="record-button" class="button secondary" type="button">Record from microphone</button>
+        </div>
+        <p id="source-name" class="muted">No audio selected</p>
+        <audio id="player" controls hidden></audio>
+        <p id="recording-note" class="recording-note" hidden><span></span> Recording — press again to stop and analyse</p>
+      </section>
+
+      <section class="panel controls">
+        <div>
+          <h2>Analysis</h2>
+          <p class="muted">Best with clear, sustained harmony. Works entirely on this device.</p>
+        </div>
+        <button id="analyse-button" class="button primary" type="button" disabled>Identify chords</button>
+      </section>
+
+      <section id="status" class="status" aria-live="polite">Select an audio file or start a recording.</section>
+
+      <section id="results" hidden>
+        <div class="results-heading">
+          <div><p class="eyebrow">DETECTED PROGRESSION</p><h2 id="summary">—</h2></div>
+          <p id="duration" class="muted"></p>
+        </div>
+        <div id="timeline" class="timeline" aria-label="Chord timeline"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>From</th><th>To</th><th>Chord</th><th>Confidence</th><th>Preview</th></tr></thead>
+            <tbody id="chord-rows"></tbody>
+          </table>
+        </div>
+        <p class="disclaimer">This is a pitch-class estimate, not sheet music transcription. Dense mixes, bass notes, inversions, percussion, and non-standard tuning can affect results.</p>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
