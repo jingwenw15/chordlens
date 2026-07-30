@@ -2,6 +2,8 @@
 
 A local browser app that identifies chord changes in an uploaded audio file or a microphone recording. The frontend sends the selected file only to a C++ analyser running on your own computer; it is never sent to an external service.
 
+**Disclaimer**: Generated with Codex.
+
 ## Run it
 
 From this repository root, build the C++ analyser and start the local backend:
